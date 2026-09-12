@@ -1,0 +1,5 @@
+# Добавьте email получателей — по одному на строку. Строки с # не читаются.
+# Пример:
+# papa@yandex.ru
+# brat@mail.ru
+ekaterrrinks@mail.ru
