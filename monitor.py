@@ -58,7 +58,10 @@ def fetch_statuses():
 
 def load_state():
     if STATE_FILE.exists():
-        return json.loads(STATE_FILE.read_text(encoding="utf-8"))
+        try:
+            return json.loads(STATE_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            return {}
     return {}
 
 
@@ -108,6 +111,24 @@ def build_message(statuses, changes, fetched_at):
     return "\n".join(lines)
 
 
+def build_welcome_message(statuses, fetched_at):
+    lines = [
+        "🚀 <b>Мониторинг АЗС успешно запущен!</b>",
+        f"⛽ <b>АЗС {CONFIG['station_id']}: {CONFIG['station_name']}</b>",
+        f"🕒 Время первого запуска: <i>{fetched_at} МСК</i>",
+        "",
+        "📋 <b>Текущие статусы топлива:</b>",
+    ]
+    for title, status in statuses.items():
+        lines.append(f"  • {title}: {status}")
+
+    lines.append("")
+    lines.append(
+        "<i>Следующие уведомления будут приходить только при изменениях.</i>"
+    )
+    return "\n".join(lines)
+
+
 def main():
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s"
@@ -120,19 +141,27 @@ def main():
         return 0
 
     state = load_state()
-    changes = [
-        title for title, status in statuses.items() if state.get(title) != status
-    ]
     fetched_at = now_msk()
 
-    # Первый запуск (state.json был пуст) — сохраняем исходное состояние без спама
+    # 1. Самый первый запуск (state.json не существовал или был пуст)
     if not state:
-        logging.info(
-            "Первый запуск. Инициализация состояния АЗС: %s", statuses
-        )
+        logging.info("Первый запуск: отправка приветствия и сохранение базы.")
+        welcome_body = build_welcome_message(statuses, fetched_at)
+        try:
+            send_telegram(welcome_body)
+            logging.info("Приветственное сообщение успешно отправлено.")
+        except Exception as exc:
+            logging.error("Ошибка отправки приветствия в Telegram: %s", exc)
+            return 1
+
         state.update(statuses)
         save_state(state)
         return 0
+
+    # 2. Повторные запуски — ищем расхождения со сохранённым состоянием
+    changes = [
+        title for title, status in statuses.items() if state.get(title) != status
+    ]
 
     if not changes:
         logging.info("Изменений нет: %s", statuses)
@@ -140,11 +169,11 @@ def main():
         save_state(state)
         return 0
 
+    # 3. Отправка отчёта об изменениях
     body = build_message(statuses, changes, fetched_at)
-
     try:
         send_telegram(body)
-        logging.info("Оповещение успешно отправлено в Telegram.")
+        logging.info("Оповещение об изменениях успешно отправлено в Telegram.")
     except Exception as exc:
         logging.error("Ошибка отправки в Telegram: %s", exc)
         return 1
