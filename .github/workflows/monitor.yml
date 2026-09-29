@@ -2,9 +2,13 @@ name: Fuel Monitor
 
 on:
   schedule:
-    # Запуск каждые 15 минут
+    # Запуск каждые 30 минут
     - cron: '*/30 * * * *'
   workflow_dispatch:
+
+# Явное разрешение на запись содержимого репозитория (нужно для git push)
+permissions:
+  contents: write
 
 jobs:
   check:
@@ -12,6 +16,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          # Забираем историю полностью, чтобы не конфликтовать при push
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -34,5 +41,10 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add state.json
-          git diff --staged --quiet || git commit -m "chore: update station state [skip ci]"
-          git push
+          # Проверяем, изменился ли файл, и если да — коммитим и пушим
+          if ! git diff --staged --quiet; then
+            git commit -m "chore: update station state [skip ci]"
+            git push
+          else
+            echo "Файл state.json не изменился, коммит не требуется."
+          fi
