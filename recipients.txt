@@ -2,4 +2,4 @@
 # Пример:
 # papa@yandex.ru
 # brat@mail.ru
-ekaterrrinks@mail.ru
+# ekaterrrinks@mail.ru
